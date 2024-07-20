@@ -1,87 +1,107 @@
-from collections import deque
-
-# Directions for movement and their respective pipe connectors
-DIRECTIONS = {
-    '═': [(0, -1, '═'), (0, 1, '═')],
-    '║': [(-1, 0, '║'), (1, 0, '║')],
-    '╔': [(0, 1, '═'), (1, 0, '║')],
-    '╗': [(0, -1, '═'), (1, 0, '║')],
-    '╚': [(0, 1, '═'), (-1, 0, '║')],
-    '╝': [(0, -1, '═'), (-1, 0, '║')],
-    '╠': [(0, -1, '═'), (0, 1, '═'), (1, 0, '║'), (-1, 0, '║')],
-    '╣': [(0, -1, '═'), (0, 1, '═'), (1, 0, '║'), (-1, 0, '║')],
-    '╦': [(0, -1, '═'), (0, 1, '═'), (1, 0, '║')],
-    '╩': [(0, -1, '═'), (0, 1, '═'), (-1, 0, '║')],
-    '*': [(0, -1, '═'), (0, 1, '═'), (1, 0, '║'), (-1, 0, '║')]
-}
-
-def parse_input(file_path):
-    grid = {}
-    sinks = set()
-    source = None
-    with open(file_path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue  # Skip empty lines
-            obj, x, y = line.split()
-            x, y = int(x), int(y)
-            grid[(x, y)] = obj
-            if obj == '*':
-                source = (x, y)
-            elif obj.isupper():
-                sinks.add(obj)
-    print("Parsed grid:", grid)  # Debugging statement
-    print("Source:", source)     # Debugging statement
-    print("Sinks:", sinks)       # Debugging statement
-    return grid, source, sinks
-
-def is_connected(pipe1, pipe2, direction):
+def is_connected(cell1, cell2):
     """
-    Determines if two pipes are connected based on their type and direction of connection.
+    Check if two cells (with pipe characters) are connected through their shared edge.
     """
-    if direction == (0, 1):  # Right
-        return pipe2 in ['═', '╠', '╦', '╩', '╚', '╔', '*'] and pipe1 in ['═', '╣', '╦', '╩', '╝', '╗', '*']
-    elif direction == (0, -1):  # Left
-        return pipe2 in ['═', '╣', '╦', '╩', '╝', '╗', '*'] and pipe1 in ['═', '╠', '╦', '╩', '╚', '╔', '*']
-    elif direction == (1, 0):  # Down
-        return pipe2 in ['║', '╦', '╩', '╠', '╚', '╔', '*'] and pipe1 in ['║', '╦', '╩', '╣', '╝', '╗', '*']
-    elif direction == (-1, 0):  # Up
-        return pipe2 in ['║', '╦', '╩', '╣', '╝', '╗', '*'] and pipe1 in ['║', '╦', '╩', '╠', '╚', '╔', '*']
+    openings = {
+        '═': [(0, -1), (0, 1)],  # left and right
+        '║': [(-1, 0), (1, 0)],  # top and bottom
+        '╔': [(1, 0), (0, 1)],   # bottom and right
+        '╗': [(1, 0), (0, -1)],  # bottom and left
+        '╚': [(-1, 0), (0, 1)],  # top and right
+        '╝': [(-1, 0), (0, -1)], # top and left
+        '╠': [(0, -1), (0, 1), (1, 0)], # left, right, bottom
+        '╣': [(0, -1), (0, 1), (-1, 0)],# left, right, top
+        '╦': [(1, 0), (0, -1), (0, 1)], # bottom, left, right
+        '╩': [(0, -1), (0, 1), (-1, 0)] # left, right, top
+    }
+    
+    special_openings = [(-1, 0), (1, 0), (0, -1), (0, 1)] # top, bottom, left, right
+
+    if cell1 in ['*'] or cell2 in ['*']:
+        return True
+    if cell1.isalpha() or cell2.isalpha():
+        return True
+    
+    for direction in openings.get(cell1, []):
+        if (-direction[0], -direction[1]) in openings.get(cell2, []):
+            return True
+    
     return False
 
-def find_connected_sinks(file_path):
-    grid, source, sinks = parse_input(file_path)
-    if not source:
-        return ""
-    
-    queue = deque([source])
-    visited = set([source])
-    connected_sinks = set()
 
-    print("Initial queue:", queue)  # Debugging statement
+def read_input(file_path):
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
     
-    while queue:
-        x, y = queue.popleft()
-        current = grid[(x, y)]
-        
-        for dx, dy, valid_pipe in DIRECTIONS[current]:
+    objects = []
+    for line in lines:
+        obj, x, y = line.strip().split()
+        x, y = int(x), int(y)
+        objects.append((obj, x, y))
+    return objects
+
+
+def build_grid(objects):
+    max_x = max([x for _, x, _ in objects])
+    max_y = max([y for _, _, y in objects])
+    
+    grid = [[' ' for _ in range(max_x + 1)] for _ in range(max_y + 1)]
+    for obj, x, y in objects:
+        grid[y][x] = obj
+    return grid
+
+
+def find_connected_sinks(grid):
+    from collections import deque
+    
+    def neighbors(x, y):
+        for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
             nx, ny = x + dx, y + dy
-            if (nx, ny) in grid and (nx, ny) not in visited:
-                neighbor = grid[(nx, ny)]
-                # Check if the current pipe and neighbor pipe are connected
-                if is_connected(current, neighbor, (dx, dy)):
-                    visited.add((nx, ny))
-                    queue.append((nx, ny))
-                    if neighbor.isupper():
-                        connected_sinks.add(neighbor)
-                print(f"Checking ({nx}, {ny}): Neighbor={neighbor}, Current={current}, Direction=({dx}, {dy}), Valid_pipe={valid_pipe}")  # Debugging statement
-        print("Queue after processing cell ({}, {}): {}".format(x, y, queue))  # Debugging statement
+            if 0 <= nx < len(grid[0]) and 0 <= ny < len(grid):
+                yield nx, ny
     
-    print("Connected sinks:", connected_sinks)  # Debugging statement
-    return ''.join(sorted(connected_sinks))
+    def bfs(source_x, source_y):
+        visited = set()
+        queue = deque([(source_x, source_y)])
+        sinks = set()
+        
+        while queue:
+            x, y = queue.popleft()
+            if (x, y) in visited:
+                continue
+            visited.add((x, y))
+            
+            if grid[y][x].isalpha():
+                sinks.add(grid[y][x])
+            
+            for nx, ny in neighbors(x, y):
+                if (nx, ny) not in visited and is_connected(grid[y][x], grid[ny][nx]):
+                    queue.append((nx, ny))
+        
+        return sinks
+    
+    for y in range(len(grid)):
+        for x in range(len(grid[0])):
+            if grid[y][x] == '*':
+                source_x, source_y = x, y
+                break
+    
+    return bfs(source_x, source_y)
 
-# Example usage:
+
+def connected_sinks(file_path):
+    objects = read_input(file_path)
+    grid = build_grid(objects)
+    sinks = find_connected_sinks(grid)
+    return ''.join(sorted(sinks))
+
+
 if __name__ == "__main__":
-    result = find_connected_sinks("input.txt")
-    print("Result:", result)
+    import sys
+    if len(sys.argv) != 2:
+        print("Usage: python3 pipe_system.py <input_file>")
+        sys.exit(1)
+    
+    file_path = sys.argv[1]
+    result = connected_sinks(file_path)
+    print(result)
